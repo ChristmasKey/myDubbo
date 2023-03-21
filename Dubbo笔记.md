@@ -358,7 +358,181 @@ public class OrderServiceImpl implements OrderService {
 
 #### 使用dubbo改造
 
-改造步骤如下：
+==基于Spring的改造，步骤如下：==
+
+##### 将服务提供者注册到注册中心
+
+1、导入dubbo及相关依赖
+
+```xml
+<!--引入Dubbo依赖-->
+<dependency>
+    <groupId>org.apache.dubbo</groupId>
+    <artifactId>dubbo</artifactId>
+    <version>3.1.6</version>
+</dependency>
+<!--引入Spring的上下文依赖-->
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-context</artifactId>
+    <version>5.3.25</version>
+</dependency>
+<!--引入服务发现的依赖-->
+<dependency>
+    <groupId>org.apache.curator</groupId>
+    <artifactId>curator-x-discovery</artifactId>
+    <version>5.2.0</version>
+</dependency>
+<!--引入Zookeeper依赖-->
+<dependency>
+    <groupId>org.apache.zookeeper</groupId>
+    <artifactId>zookeeper</artifactId>
+    <version>3.8.0</version>
+</dependency>
+```
+
+2、配置服务端的XML配置文件**provider.xml**
+
+在这个配置文件中，定义了 Dubbo 的应用名、Dubbo 使用的注册中心地址、发布服务的 spring bean 以及通过 Dubbo 去发布这个 bean。
+
+<span style="color:red;">**注意！！！此处的dubbo应用名name不要使用驼峰写法，会造成启动失败，读取不到应用配置的错误！！**</span>
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns="http://www.springframework.org/schema/beans" xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+    <context:property-placeholder/>
+
+    <!-- 定义应用名 -->
+    <dubbo:application name="user-service"/>
+
+    <!-- 定义注册中心地址 -->
+    <dubbo:registry address="zookeeper://127.0.0.1:2181"/>
+    <!--第二种写法-->
+    <!--<dubbo:registry protocol="zookeeper" address="127.0.0.1:2181"/>-->
+
+    <!-- 定义实现类对应的 bean -->
+    <bean id="userService" class="com.djn.gmall.service.impl.UserServiceImpl"/>
+    <!-- 定义服务信息，引用上面的 bean -->
+    <dubbo:service interface="com.djn.gmall.service.UserService" ref="userService"/>
+
+</beans>
+```
+
+3、启动项目，并加载provider.xml，让dubbo自动将服务注册到注册中心
+
+```java
+package com.djn.gmall;
+
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+import java.util.concurrent.CountDownLatch;
+
+public class Application {
+
+    public static void main(String[] args) throws InterruptedException {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("provider.xml");
+        context.start();
+
+        //挂起主线程，防止退出
+        new CountDownLatch(1).await();
+
+        //System.in.read();
+    }
+}
+```
+
+
+
+##### 让服务消费者去注册中心订阅服务提供者的服务地址
+
+1、导入dubbo及相关依赖（同服务端）
+
+2、配置消费端的XML配置文件**consumer.xml**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns="http://www.springframework.org/schema/beans" xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+    <context:property-placeholder/>
+
+    <context:component-scan base-package="com.djn.gmall.service.impl"/>
+
+    <!-- 定义应用名 -->
+    <dubbo:application name="order-service"/>
+
+    <!-- 定义注册中心地址 -->
+    <dubbo:registry address="zookeeper://127.0.0.1:2181"/>
+
+    <!-- 定义订阅信息，Dubbo 会在 Spring Context 中创建对应的 bean -->
+    <dubbo:reference id="userService" interface="com.djn.gmall.service.UserService"/>
+
+</beans>
+```
+
+3、编写项目启动类
+
+```java
+package com.djn.gmall;
+
+import com.djn.gmall.bean.UserAddress;
+import com.djn.gmall.service.OrderService;
+import com.djn.gmall.service.UserService;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+import java.io.IOException;
+import java.util.List;
+
+public class Application {
+
+    public static void main(String[] args) throws IOException {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("consumer.xml");
+        context.start();
+        OrderService orderService = context.getBean(OrderService.class);
+        orderService.initOrder("1");
+        System.out.println("调用完成。。。");
+        System.in.read();
+        System.exit(0);
+    }
+}
+```
+
+4、在**OrderService**中调用**UserService**
+
+给OrderServiceImpl加上@Service注解，同时注入UserService
+
+```java
+package com.djn.gmall.service.impl;
+
+import com.djn.gmall.bean.UserAddress;
+import com.djn.gmall.service.OrderService;
+import com.djn.gmall.service.UserService;
+import org.springframework.stereotype.Service;
+
+import javax.annotation.Resource;
+import java.util.List;
+
+@Service
+public class OrderServiceImpl implements OrderService {
+
+    @Resource
+    UserService userService;
+
+    @Override
+    public void initOrder(String userId) {
+        System.out.println("用户id：" + userId);
+        // 1.查询用户的收货地址
+        List<UserAddress> addressList = userService.getUserAddressList(userId);
+        addressList.forEach(address -> System.out.println(address.getUserAddress()));
+    }
+}
+```
 
 
 
