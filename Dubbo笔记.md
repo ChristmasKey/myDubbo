@@ -538,9 +538,310 @@ public class OrderServiceImpl implements OrderService {
 
 ### 5、监控中心
 
+dubbo-admin：图形化的服务管理页面，安装时需要指定注册中心地址，即可从注册中心获取到所有提供者/消费者进行配置管理
+
+
+
+dubbo-monitor-simple：简单的监控中心
+
 
 
 ### 6、整合SpringBoot
+
+首先创建两个SpringBoot项目：
+
+​    **boot-user-service**（作为Provider）
+
+​	**boot-order-service**（作为Consumer）
+
+并都引入**ServiceCommon**依赖，其中**boot-order-service**要引入web启动器，作为一个Web项目去运行。
+
+
+
+① 在**boot-order-service**中编写OrderService的实现类
+
+```java
+package com.djn.gmall.service.impl;
+
+import com.djn.gmall.bean.UserAddress;
+import com.djn.gmall.service.OrderService;
+import com.djn.gmall.service.UserService;
+import org.springframework.stereotype.Service;
+
+import javax.annotation.Resource;
+import java.util.List;
+
+@Service("orderService")
+public class BootOrderServiceImpl implements OrderService {
+
+    @Resource
+    private UserService userService;
+
+    @Override
+    public List<UserAddress> initOrder(String userId) {
+        System.out.println("用户id：" + userId);
+        //1.查询用户的收获地址
+        return userService.getUserAddressList(userId);
+    }
+}
+```
+
+编写Controller用于调用BootOrderServiceImpl
+
+```java
+package com.djn.gmall.controller;
+
+import com.djn.gmall.bean.UserAddress;
+import com.djn.gmall.service.OrderService;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.annotation.Resource;
+import java.util.List;
+
+@RestController
+public class OrderController {
+
+    @Resource
+    OrderService orderService;
+
+    @GetMapping("initOrder")
+    public List<UserAddress> initOrder(@RequestParam("uid") String userId) {
+        return orderService.initOrder(userId);
+    }
+}
+```
+
+
+
+② 在**boot-user-service**中编写UserService的实现类
+
+```java
+package com.djn.gmall.service.impl;
+
+import com.djn.gmall.bean.UserAddress;
+import com.djn.gmall.service.UserService;
+import org.springframework.stereotype.Service;
+
+import java.util.Arrays;
+import java.util.List;
+
+@Service
+public class BootUserServiceImpl implements UserService {
+
+    @Override
+    public List<UserAddress> getUserAddressList(String s) {
+        UserAddress address1 = new UserAddress();
+        address1.setId(1);
+        address1.setUserAddress("地址一");
+        address1.setUserId("1");
+        address1.setConsignee("李老师");
+        address1.setPhoneNum("123456789");
+        address1.setIsDefault("YES");
+        UserAddress address2 = new UserAddress();
+        address1.setId(2);
+        address2.setUserAddress("地址二");
+        address2.setUserId("1");
+        address2.setConsignee("王老师");
+        address2.setPhoneNum("123456780");
+        address2.setIsDefault("NO");
+
+        return Arrays.asList(address1, address2);
+    }
+}
+```
+
+
+
+③ 配置远程调用
+
+**Provider**
+
+添加依赖
+
+```xml
+<dependency>
+    <groupId>org.apache.dubbo</groupId>
+    <artifactId>dubbo-spring-boot-starter</artifactId>
+    <version>3.1.6</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.dubbo</groupId>
+    <artifactId>dubbo-dependencies-zookeeper-curator5</artifactId>
+    <version>3.2.0-beta.4</version>
+    <type>pom</type>
+    <exclusions>
+        <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-reload4j</artifactId>
+        </exclusion>
+        <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
+```
+
+填写配置
+
+```properties
+#服务注册名
+dubbo.application.name=boot-user-service
+#注册中心地址
+dubbo.registry.address=127.0.0.1:2181
+#注册中心访问协议
+dubbo.registry.protocol=zookeeper
+
+#通信协议
+dubbo.protocol.name=dubbo
+#通信端口
+dubbo.protocol.port=-1
+
+#配置连接监控中心
+dubbo.monitor.protocol=registry
+```
+
+【小拓展：[dubbo.protocol.port = -1](https://blog.csdn.net/hold_on_/article/details/113940136)】
+
+使用@DubboService注解将服务的实现暴露出去
+
+```java
+package com.djn.gmall.service.impl;
+
+import com.djn.gmall.bean.UserAddress;
+import com.djn.gmall.service.UserService;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.springframework.stereotype.Service;
+
+import java.util.Arrays;
+import java.util.List;
+
+@DubboService
+@Service
+public class BootUserServiceImpl implements UserService {
+
+    @Override
+    public List<UserAddress> getUserAddressList(String s) {
+        UserAddress address1 = new UserAddress();
+        address1.setId(1);
+        address1.setUserAddress("地址一");
+        address1.setUserId("1");
+        address1.setConsignee("李老师");
+        address1.setPhoneNum("123456789");
+        address1.setIsDefault("YES");
+        UserAddress address2 = new UserAddress();
+        address1.setId(2);
+        address2.setUserAddress("地址二");
+        address2.setUserId("1");
+        address2.setConsignee("王老师");
+        address2.setPhoneNum("123456780");
+        address2.setIsDefault("NO");
+
+        return Arrays.asList(address1, address2);
+    }
+}
+```
+
+开启基于注解的dubbo功能，并启动项目
+
+```java
+package com.djn.gmall;
+
+import org.apache.dubbo.config.spring.context.annotation.EnableDubbo;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@EnableDubbo //开启基于注解的dubbo功能
+@SpringBootApplication
+public class BootUserServiceApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(BootUserServiceApplication.class, args);
+    }
+
+}
+```
+
+
+
+**Consumer**
+
+添加依赖（同上）
+
+填写配置
+
+```properties
+#服务注册名
+dubbo.application.name=boot-order-service
+#注册中心地址
+dubbo.registry.address=127.0.0.1:2181
+#注册中心访问协议
+dubbo.registry.protocol=zookeeper
+
+#通信协议
+dubbo.protocol.name=dubbo
+#通信端口
+dubbo.protocol.port=-1
+
+#配置连接监控中心
+dubbo.monitor.protocol=registry
+```
+
+使用@DubboReference注解引入服务的实现
+
+```java
+package com.djn.gmall.service.impl;
+
+import com.djn.gmall.bean.UserAddress;
+import com.djn.gmall.service.OrderService;
+import com.djn.gmall.service.UserService;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service("orderService")
+public class BootOrderServiceImpl implements OrderService {
+
+    @DubboReference
+    private UserService userService;
+
+    @Override
+    public List<UserAddress> initOrder(String userId) {
+        System.out.println("用户id：" + userId);
+        //1.查询用户的收获地址
+        return userService.getUserAddressList(userId);
+    }
+}
+```
+
+修改Web项目的端口号，开启基于注解的Dubbo功能，并启动项目
+
+`server.port=8090`
+
+```java
+package com.djn.gmall;
+
+import org.apache.dubbo.config.spring.context.annotation.EnableDubbo;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@EnableDubbo
+@SpringBootApplication
+public class BootOrderServiceApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(BootOrderServiceApplication.class, args);
+    }
+
+}
+```
+
+访问路径：http://localhost:8090/initOrder?uid=1，得到的结果如下
+
+![基于SpringBoot整合的Dubbo项目运行结果](./images/基于SpringBoot整合的Dubbo项目运行结果.png)
 
 
 
