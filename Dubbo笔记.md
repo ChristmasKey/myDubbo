@@ -849,6 +849,96 @@ public class BootOrderServiceApplication {
 
 ## 二、Dubbo配置
 
+dubbo的详细配置项可见官网：[配置手册](https://cn.dubbo.apache.org/zh-cn/overview/mannual/java-sdk/reference-manual/config/) ==> **配置项手册**
+
+dubbo的配置覆盖策略：
+
+![dubbo的配置覆盖策略](./images/dubbo的配置覆盖策略.jpg)
+
+### 启动时检查
+
+![dubbo服务调用的启动时检查](./images/dubbo服务调用的启动时检查.png)
+
+#### 使用方式：
+
+##### 一、通过Spring配置文件
+
+**关闭某个服务的启动时检查**
+
+==如果没有设置值，会去找dubbo.consumer的值，如果还没找到，会使用dubbo的默认值true==
+
+```xml
+<!-- 定义订阅信息，Dubbo 会在 Spring Context 中创建对应的 bean -->
+<dubbo:reference id="userService" interface="com.djn.gmall.service.UserService" check="false"/>
+```
+
+
+
+**关闭所有服务的启动时检查**
+
+```xml
+<!--配置当前消费者的统一规则：所有的服务都不进行“启动时检查”-->
+<dubbo:consumer check="false"/>
+```
+
+
+
+**关闭注册中心的启动时检查**
+
+- <span style="color:red;">前面两个都是指订阅成功，但提供者未提供服务时是否报错；这个是指如果注册订阅失败时，也允许启动</span>
+
+- 如果使用此选项，将在后台定时重试。
+
+```xml
+<!--关闭注册中心启动时检查-->
+<dubbo:registry check="false"/>
+```
+
+
+
+##### 二、通过dubbo.properties及注解
+
+**关闭某个服务的启动时检查**
+
+```java
+@DubboReference(check = false)
+private UserService userService;
+```
+
+
+
+**关闭所有服务的启动时检查**
+
+```properties
+#配置当前消费者的统一规则：所有的服务都不进行“启动时检查”
+dubbo.consumer.check=false
+```
+
+
+
+**关闭注册中心的启动时检查**
+
+```properties
+#关闭注册中心启动时检查
+dubbo.registry.check=false
+```
+
+
+
+##### 三、通过 -D 参数
+
+```java
+java -Ddubbo.reference.com.foo.BarService.check=false
+java -Ddubbo.consumer.check=false 
+java -Ddubbo.registry.check=false
+```
+
+
+
+### 超时 与 配置的覆盖关系
+
+
+
 
 
 ## 三、高可用
