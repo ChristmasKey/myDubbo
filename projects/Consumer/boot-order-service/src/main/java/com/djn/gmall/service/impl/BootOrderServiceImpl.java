@@ -11,7 +11,7 @@ import java.util.List;
 @Service("orderService")
 public class BootOrderServiceImpl implements OrderService {
 
-    @DubboReference(check = false)
+    @DubboReference(check = false, timeout = 5000)
     private UserService userService;
 
     @Override

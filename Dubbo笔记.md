@@ -935,9 +935,133 @@ java -Ddubbo.registry.check=false
 
 
 
-### 超时 与 配置的覆盖关系
+### 超时与配置的覆盖关系
+
+当消费者调用提供者的接口时，可能由于网络等各种原因，导致服务提供者的接口执行时间较长，最终导致大量线程处于阻塞状态，整个系统性能下降！
+
+通过指定消费者的**超时**属性（单位：ms，缺省时使用dubbo:consumer的timeout，默认1000ms），解决上述问题。
+
+（如果在指定时间内，提供者的接口没有响应或返回结果，就立即中止消费者的调用）
+
+在Spring中这样配置
+
+```xml
+<!-- 定义订阅信息，Dubbo 会在 Spring Context 中创建对应的 bean -->
+<dubbo:reference id="userService" interface="com.djn.gmall.service.UserService" check="false" timeout="3000"/>
+
+<!--配置当前消费者的统一规则：所有的服务都不进行“启动时检查”，并且服务调用的超时时长为3000毫秒-->
+<dubbo:consumer check="false" timeout="3000"/>
+```
+
+==注意：dubbo:reference标签还可以包含dubbo:method标签==
+
+```xml
+<!-- 定义订阅信息，Dubbo 会在 Spring Context 中创建对应的 bean -->
+<dubbo:reference id="userService" interface="com.djn.gmall.service.UserService" check="false" timeout="5000">
+    <dubbo:method name="getUserAddressList" timeout="1000"/>
+</dubbo:reference>
+```
 
 
+
+在SpringBoot中这样配置
+
+```java
+@DubboReference(check = false, timeout = 3000)
+private UserService userService;
+```
+
+- 统一配置超时属性
+
+```properties
+#设置所有消费者调用的超时时长
+dubbo.consumer.timeout=3000
+```
+
+
+
+当我们给消费者和它所调用的服务都配置上相同的配置属性时（例如：都配置了超时属性），这些配置的覆盖关系是如何的呢？
+
+- **精确优先**：方法级优先，接口次之，全局配置再次之
+  - 例如timeout配置的覆盖关系为：dubbo:mtehod > dubbo:reference > dubbo:consumer
+
+- **消费者设置优先**：如果级别一样，则消费方优先，提供方次之
+  - 例如timeout配置的覆盖关系为：dubbo:consumer > dubbo:service
+
+==是的，没有错！我们也可以在提供者注册服务的时候，就指定好该服务的超时设置==
+
+```xml
+<!-- 定义服务信息，引用上面的 bean -->
+<dubbo:service interface="com.djn.gmall.service.UserService" ref="userService" timeout="2000"/>
+
+<!--统一设置提供方的规则-->
+<dubbo:provider timeout="1000"/>
+```
+
+
+
+### 重试次数
+
+当一个服务由于网络不佳等原因，导致超时、远程调用失败，我们可以通过设置重试次数，让服务调用多尝试几次。
+
+**重试次数**是一个整数，不包含第一次的服务调用。
+
+```xml
+<!-- 定义订阅信息，Dubbo 会在 Spring Context 中创建对应的 bean -->
+<dubbo:reference id="userService" interface="com.djn.gmall.service.UserService"
+                 check="false" timeout="5000" retries="3">
+</dubbo:reference>
+```
+
+修改UserServiceImplement中的方法
+
+```java
+@Override
+public List<UserAddress> getUserAddressList(String userId) {
+    //添加一行打印
+    System.out.println("UserServiceImpl......1...");
+
+    UserAddress address1 = new UserAddress();
+    address1.setId(1);
+    address1.setUserAddress("地址一");
+    address1.setUserId("1");
+    address1.setConsignee("李老师");
+    address1.setPhoneNum("123456789");
+    address1.setIsDefault("YES");
+    UserAddress address2 = new UserAddress();
+    address1.setId(2);
+    address2.setUserAddress("地址二");
+    address2.setUserId("1");
+    address2.setConsignee("王老师");
+    address2.setPhoneNum("123456780");
+    address2.setIsDefault("NO");
+
+    //设置线程睡眠
+    try {
+        Thread.sleep(6000);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
+    }
+
+    return Arrays.asList(address1, address2);
+}
+```
+
+启动项目、调用服务，可以看到打印行打印了4次！
+
+
+
+==此外，如果有多个同种功能的服务被注册了，服务调用失败后的**重试**功能还会去调用其他服务实例。==
+
+<span style="color:red;">**注意：**重试次数只能设置于幂等性操作的服务上；对于非幂等性操作的服务，我们应该将重试次数设置为0！！！</span>
+
+>幂等操作：多次执行的结果和一次执行的结果相同的操作，如查询、删除、修改；
+>
+>非幂等操作：多次执行的结果和一次执行的结果不同的操作，如新增。
+
+
+
+### 多版本
 
 
 

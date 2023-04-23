@@ -29,6 +29,12 @@ public class BootUserServiceImpl implements UserService {
         address2.setPhoneNum("123456780");
         address2.setIsDefault("NO");
 
+        try {
+            Thread.sleep(4000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
         return Arrays.asList(address1, address2);
     }
 }

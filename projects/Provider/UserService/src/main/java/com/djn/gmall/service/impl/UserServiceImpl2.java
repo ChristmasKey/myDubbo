@@ -6,11 +6,11 @@ import com.djn.gmall.service.UserService;
 import java.util.Arrays;
 import java.util.List;
 
-public class UserServiceImpl implements UserService {
+public class UserServiceImpl2 implements UserService {
 
     @Override
     public List<UserAddress> getUserAddressList(String userId) {
-        System.out.println("UserServiceImpl......old...");
+        System.out.println("UserServiceImpl......new...");
 
         UserAddress address1 = new UserAddress();
         address1.setId(1);

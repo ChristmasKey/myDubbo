@@ -12,15 +12,18 @@
     <dubbo:application name="order-service"/>
 
     <!-- 定义注册中心地址 -->
-    <dubbo:registry address="zookeeper://127.0.0.1:2181"/>
+    <dubbo:registry address="zookeeper://127.0.0.1:2181" check="false"/>
 
-    <!--配置当前消费者的统一规则：所有的服务都不进行“启动时检查”-->
-    <dubbo:consumer check="false"/>
+    <!--配置当前消费者的统一规则：所有的服务都不进行“启动时检查”，并且服务调用的超时时长为3000毫秒-->
+    <dubbo:consumer check="false" timeout="3000"/>
 
     <!--关闭注册中心启动时检查-->
-    <dubbo:registry check="false"/>
+<!--    <dubbo:registry check="false"/>-->
 
     <!-- 定义订阅信息，Dubbo 会在 Spring Context 中创建对应的 bean -->
-    <dubbo:reference id="userService" interface="com.djn.gmall.service.UserService" check="false"/>
+    <dubbo:reference id="userService" interface="com.djn.gmall.service.UserService"
+                     check="false" timeout="5000" retries="3">
+<!--        <dubbo:method name="getUserAddressList" timeout="2000"/>-->
+    </dubbo:reference>
 
 </beans>

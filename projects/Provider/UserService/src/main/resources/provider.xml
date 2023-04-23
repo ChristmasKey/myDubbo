@@ -15,11 +15,14 @@
     <!--<dubbo:registry protocol="zookeeper" address="127.0.0.1:2181"/>-->
 
     <!-- 指定通信规则：用dubbo协议在20880端口暴露服务 -->
-    <dubbo:protocol name="dubbo" port="20880"/>
+    <dubbo:protocol name="dubbo" port="20881"/>
 
     <!-- 定义实现类对应的 bean -->
     <bean id="userService" class="com.djn.gmall.service.impl.UserServiceImpl"/>
     <!-- 定义服务信息，引用上面的 bean -->
-    <dubbo:service interface="com.djn.gmall.service.UserService" ref="userService"/>
+    <dubbo:service interface="com.djn.gmall.service.UserService" ref="userService" timeout="2000"/>
+
+    <!--统一设置提供方的规则-->
+    <dubbo:provider timeout="1000"/>
 
 </beans>
